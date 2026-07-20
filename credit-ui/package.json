@@ -11,6 +11,10 @@
   "engines": {
     "node": ">=20"
   },
+  "//": "@aws-amplify/backend-data's nested tree pins @opentelemetry/core at exactly 2.0.0 while the lock resolves 2.8/2.9, which `npm ci` rejects as out of sync. Collapse it to one version.",
+  "overrides": {
+    "@opentelemetry/core": "2.9.0"
+  },
   "devDependencies": {
     "@aws-amplify/backend": "^1.14.0",
     "@aws-amplify/backend-cli": "^1.4.0",
