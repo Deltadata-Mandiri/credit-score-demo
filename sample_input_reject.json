@@ -1,0 +1,10 @@
+{
+  "applicantId": "APP-2002",
+  "fullName": "Andi Pratama",
+  "requestedAmount": 100000000,
+  "annualIncome": 48000000,
+  "monthlyDebt": 2500000,
+  "employmentYears": 1,
+  "creditHistoryYears": 2,
+  "delinquencies": 3
+}

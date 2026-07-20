@@ -1,0 +1,25 @@
+{
+  "name": "credit-ui",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BRI Credit Decisioning UI + Conductor credentials proxy",
+  "scripts": {
+    "dev": "node server.js",
+    "sandbox": "ampx sandbox",
+    "sandbox:delete": "ampx sandbox delete"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@aws-amplify/backend": "^1.14.0",
+    "@aws-amplify/backend-cli": "^1.4.0",
+    "@types/aws-lambda": "^8.10.147",
+    "@types/node": "^26.1.1",
+    "aws-cdk-lib": "^2.177.0",
+    "constructs": "^10.4.2",
+    "esbuild": "^0.24.2",
+    "tsx": "^4.19.4",
+    "typescript": "^5.7.3"
+  }
+}

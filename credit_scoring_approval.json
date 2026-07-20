@@ -1,0 +1,228 @@
+{
+  "name": "credit_scoring_approval",
+  "description": "Credit scoring & approval system. Validates the application, computes a deterministic explainable score, routes Approve / Manual-review / Reject on score bands, assigns a tiered offer (credit limit + APR), then an LLM writes a compliant decision letter rendered to PDF and notifies the applicant.",
+  "version": 1,
+  "schemaVersion": 2,
+  "restartable": true,
+  "ownerEmail": "",
+  "timeoutPolicy": "ALERT_ONLY",
+  "timeoutSeconds": 0,
+  "inputParameters": [
+    "applicantId",
+    "fullName",
+    "requestedAmount",
+    "annualIncome",
+    "monthlyDebt",
+    "employmentYears",
+    "creditHistoryYears",
+    "delinquencies"
+  ],
+  "variables": {
+    "finalStatus": "PENDING",
+    "creditLimit": 0,
+    "interestRate": 0,
+    "tier": "None",
+    "reviewNote": ""
+  },
+  "tasks": [
+    {
+      "name": "validate_application",
+      "taskReferenceName": "validate_ref",
+      "type": "INLINE",
+      "inputParameters": {
+        "evaluatorType": "graaljs",
+        "applicantId": "${workflow.input.applicantId}",
+        "annualIncome": "${workflow.input.annualIncome}",
+        "requestedAmount": "${workflow.input.requestedAmount}",
+        "monthlyDebt": "${workflow.input.monthlyDebt}",
+        "expression": "(function(){var errors=[];var id=$.applicantId;var income=Number($.annualIncome);var amount=Number($.requestedAmount);var debt=Number($.monthlyDebt);if(!id||String(id).length===0){errors.push('applicantId is required');}if(!(income>0)){errors.push('annualIncome must be a positive number');}if(!(amount>0)){errors.push('requestedAmount must be a positive number');}if(!(debt>=0)){errors.push('monthlyDebt must be zero or a positive number');}return {valid:errors.length===0,errors:errors};})();"
+      }
+    },
+    {
+      "name": "validation_gate",
+      "taskReferenceName": "validation_gate_ref",
+      "type": "SWITCH",
+      "evaluatorType": "graaljs",
+      "expression": "$.valid ? 'VALID' : 'INVALID'",
+      "inputParameters": {
+        "valid": "${validate_ref.output.result.valid}"
+      },
+      "decisionCases": {
+        "INVALID": [
+          {
+            "name": "terminate_invalid",
+            "taskReferenceName": "terminate_invalid_ref",
+            "type": "TERMINATE",
+            "inputParameters": {
+              "terminationStatus": "FAILED",
+              "terminationReason": "Application failed validation",
+              "workflowOutput": {
+                "finalStatus": "VALIDATION_FAILED",
+                "errors": "${validate_ref.output.result.errors}"
+              }
+            }
+          }
+        ]
+      },
+      "defaultCase": []
+    },
+    {
+      "name": "compute_credit_score",
+      "taskReferenceName": "score_ref",
+      "type": "INLINE",
+      "inputParameters": {
+        "evaluatorType": "graaljs",
+        "annualIncome": "${workflow.input.annualIncome}",
+        "monthlyDebt": "${workflow.input.monthlyDebt}",
+        "employmentYears": "${workflow.input.employmentYears}",
+        "creditHistoryYears": "${workflow.input.creditHistoryYears}",
+        "delinquencies": "${workflow.input.delinquencies}",
+        "requestedAmount": "${workflow.input.requestedAmount}",
+        "expression": "(function(){var income=Number($.annualIncome)||0;var debt=Number($.monthlyDebt)||0;var empYears=Number($.employmentYears)||0;var histYears=Number($.creditHistoryYears)||0;var delinq=Number($.delinquencies)||0;var amount=Number($.requestedAmount)||0;var reasons=[];var score=650;var dti=income>0?(debt*12)/income:1;if(dti<=0.20){score+=60;reasons.push('Low debt-to-income ratio');}else if(dti<=0.35){score+=20;reasons.push('Moderate debt-to-income ratio');}else if(dti<=0.45){score-=30;reasons.push('Elevated debt-to-income ratio');}else{score-=80;reasons.push('High debt-to-income ratio');}if(income>=300000000){score+=40;reasons.push('High annual income');}else if(income>=120000000){score+=20;}else if(income<60000000){score-=30;reasons.push('Low annual income');}if(empYears>=5){score+=30;reasons.push('Stable employment history');}else if(empYears>=2){score+=10;}else{score-=20;reasons.push('Short employment history');}if(histYears>=7){score+=30;reasons.push('Long credit history');}else if(histYears>=3){score+=10;}else{score-=20;reasons.push('Limited credit history');}if(delinq===0){score+=30;reasons.push('No delinquencies on record');}else if(delinq<=2){score-=40;reasons.push('Some past delinquencies');}else{score-=100;reasons.push('Multiple past delinquencies');}if(income>0&&amount>income*0.5){score-=30;reasons.push('Requested amount large relative to income');}if(score>850){score=850;}if(score<300){score=300;}var band;if(score>=720){band='APPROVE';}else if(score>=640){band='REVIEW';}else{band='REJECT';}return {score:score,band:band,dti:Math.round(dti*100)/100,reasonCodes:reasons};})();"
+      }
+    },
+    {
+      "name": "decision_router",
+      "taskReferenceName": "decision_router_ref",
+      "type": "SWITCH",
+      "evaluatorType": "value-param",
+      "expression": "band",
+      "inputParameters": {
+        "band": "${score_ref.output.result.band}"
+      },
+      "decisionCases": {
+        "APPROVE": [
+          {
+            "name": "assign_offer",
+            "taskReferenceName": "assign_offer_ref",
+            "type": "INLINE",
+            "inputParameters": {
+              "evaluatorType": "graaljs",
+              "score": "${score_ref.output.result.score}",
+              "annualIncome": "${workflow.input.annualIncome}",
+              "requestedAmount": "${workflow.input.requestedAmount}",
+              "expression": "(function(){var score=Number($.score)||0;var income=Number($.annualIncome)||0;var amount=Number($.requestedAmount)||0;var tier,apr,limitFactor;if(score>=780){tier='Platinum';apr=8.9;limitFactor=0.5;}else if(score>=750){tier='Gold';apr=12.9;limitFactor=0.4;}else{tier='Standard';apr=17.9;limitFactor=0.3;}var maxEligible=Math.round(income*limitFactor);var creditLimit=Math.min(amount,maxEligible);return {status:'APPROVED',tier:tier,interestRate:apr,creditLimit:creditLimit,maxEligible:maxEligible};})();"
+            }
+          },
+          {
+            "name": "set_approved",
+            "taskReferenceName": "set_approved_ref",
+            "type": "SET_VARIABLE",
+            "inputParameters": {
+              "finalStatus": "${assign_offer_ref.output.result.status}",
+              "creditLimit": "${assign_offer_ref.output.result.creditLimit}",
+              "interestRate": "${assign_offer_ref.output.result.interestRate}",
+              "tier": "${assign_offer_ref.output.result.tier}"
+            }
+          }
+        ],
+        "REVIEW": [
+          {
+            "name": "manual_review",
+            "taskReferenceName": "manual_review_ref",
+            "type": "WAIT",
+            "inputParameters": {
+              "applicantId": "${workflow.input.applicantId}",
+              "score": "${score_ref.output.result.score}",
+              "reasonCodes": "${score_ref.output.result.reasonCodes}",
+              "requestedAmount": "${workflow.input.requestedAmount}"
+            }
+          },
+          {
+            "name": "set_review",
+            "taskReferenceName": "set_review_ref",
+            "type": "SET_VARIABLE",
+            "inputParameters": {
+              "finalStatus": "${manual_review_ref.output.decision}",
+              "creditLimit": "${manual_review_ref.output.creditLimit}",
+              "interestRate": "${manual_review_ref.output.interestRate}",
+              "tier": "${manual_review_ref.output.tier}",
+              "reviewNote": "${manual_review_ref.output.note}"
+            }
+          }
+        ],
+        "REJECT": [
+          {
+            "name": "set_rejected",
+            "taskReferenceName": "set_rejected_ref",
+            "type": "SET_VARIABLE",
+            "inputParameters": {
+              "finalStatus": "REJECTED",
+              "creditLimit": 0,
+              "interestRate": 0,
+              "tier": "None"
+            }
+          }
+        ]
+      },
+      "defaultCase": []
+    },
+    {
+      "name": "generate_decision_letter",
+      "taskReferenceName": "narrative_ref",
+      "type": "LLM_CHAT_COMPLETE",
+      "inputParameters": {
+        "llmProvider": "openai",
+        "model": "gpt-4o-mini",
+        "temperature": 0.3,
+        "maxTokens": 700,
+        "jsonOutput": false,
+        "messages": [
+          {
+            "role": "system",
+            "message": "You are a lending decision officer at a bank. Write a formal, professional, compliant credit decision letter in Markdown. Use ONLY the facts provided; never invent details. For approvals, clearly state the approved credit limit, APR, and product tier. For rejections, list the specific adverse-action reasons provided. Be concise (under 300 words) and courteous. Output the raw Markdown of the letter directly. Do NOT wrap your response in code fences or triple backticks, and do not add any commentary before or after the letter."
+          },
+          {
+            "role": "user",
+            "message": "Write a credit decision letter for an Indonesian bank. All monetary amounts are in Indonesian Rupiah (IDR) — format them with dot thousands separators, e.g. Rp 50.000.000.\n- Applicant ID: ${workflow.input.applicantId}\n- Applicant name: ${workflow.input.fullName}\n- Requested amount (IDR): ${workflow.input.requestedAmount}\n- Decision: ${workflow.variables.finalStatus}\n- Internal credit score: ${score_ref.output.result.score}\n- Product tier: ${workflow.variables.tier}\n- Approved credit limit (IDR): ${workflow.variables.creditLimit}\n- Interest rate (APR %): ${workflow.variables.interestRate}\n- Key factors / reason codes: ${score_ref.output.result.reasonCodes}\nReturn only the letter in Markdown."
+          }
+        ]
+      }
+    },
+    {
+      "name": "generate_letter_pdf",
+      "taskReferenceName": "letter_pdf_ref",
+      "type": "GENERATE_PDF",
+      "inputParameters": {
+        "markdown": "${narrative_ref.output.result}",
+        "pageSize": "A4",
+        "theme": "default",
+        "pdfMetadata": {
+          "title": "Credit Decision Letter - ${workflow.input.fullName}",
+          "author": "Credit Decisioning System",
+          "subject": "Credit application ${workflow.input.applicantId}"
+        }
+      }
+    },
+    {
+      "name": "prepare_notification",
+      "taskReferenceName": "notify_ref",
+      "type": "INLINE",
+      "inputParameters": {
+        "evaluatorType": "graaljs",
+        "applicantId": "${workflow.input.applicantId}",
+        "fullName": "${workflow.input.fullName}",
+        "status": "${workflow.variables.finalStatus}",
+        "creditLimit": "${workflow.variables.creditLimit}",
+        "interestRate": "${workflow.variables.interestRate}",
+        "tier": "${workflow.variables.tier}",
+        "letterLocation": "${letter_pdf_ref.output.result.location}",
+        "expression": "(function(){var status=String($.status||'');var name=String($.fullName||'Applicant');var fmt=function(n){return 'Rp '+String(n).replace(/\\B(?=(\\d{3})+(?!\\d))/g,'.');};var subject;var body;if(status==='APPROVED'){subject='Aplikasi kredit Anda disetujui';body='Yth. '+name+', aplikasi kredit Anda DISETUJUI. Tier: '+$.tier+', Limit kredit: '+fmt($.creditLimit)+', APR: '+$.interestRate+'%. Surat keputusan terlampir.';}else if(status==='REJECTED'){subject='Informasi mengenai aplikasi kredit Anda';body='Yth. '+name+', mohon maaf, aplikasi kredit Anda belum dapat kami setujui saat ini. Silakan lihat surat terlampir untuk alasan spesifiknya.';}else{subject='Aplikasi kredit Anda sedang ditinjau';body='Yth. '+name+', aplikasi kredit Anda memerlukan peninjauan lebih lanjut. Tim kami akan menghubungi Anda segera.';}return {channel:'email',recipientRef:$.applicantId,subject:subject,body:body,letter:$.letterLocation,delivered:false};})();"
+      }
+    }
+  ],
+  "outputParameters": {
+    "applicantId": "${workflow.input.applicantId}",
+    "score": "${score_ref.output.result.score}",
+    "band": "${score_ref.output.result.band}",
+    "dti": "${score_ref.output.result.dti}",
+    "reasonCodes": "${score_ref.output.result.reasonCodes}",
+    "finalStatus": "${workflow.variables.finalStatus}",
+    "creditLimit": "${workflow.variables.creditLimit}",
+    "interestRate": "${workflow.variables.interestRate}",
+    "tier": "${workflow.variables.tier}",
+    "decisionLetterMarkdown": "${narrative_ref.output.result}",
+    "decisionLetterPdf": "${letter_pdf_ref.output.result.location}",
+    "notification": "${notify_ref.output.result}"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "applicantId": "APP-1001",
+  "fullName": "Budi Santoso",
+  "requestedAmount": 50000000,
+  "annualIncome": 360000000,
+  "monthlyDebt": 3000000,
+  "employmentYears": 8,
+  "creditHistoryYears": 10,
+  "delinquencies": 0
+}

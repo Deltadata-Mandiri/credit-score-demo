@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BRI · Sistem Keputusan Kredit</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">BRI</span>
+      <div class="brand-text">
+        <strong>Sistem Keputusan Kredit</strong>
+        <small>Credit Scoring &amp; Approval</small>
+      </div>
+    </div>
+    <span class="demo-badge">PROTOTYPE / DEMO</span>
+  </header>
+
+  <main class="layout">
+    <!-- Application form -->
+    <section class="card form-card">
+      <h2>Formulir Pengajuan Kredit</h2>
+      <p class="muted">Lengkapi data pemohon di bawah ini. Semua nominal dalam Rupiah (IDR).</p>
+      <form id="applicationForm">
+        <div class="grid">
+          <label>Nama Lengkap
+            <input name="fullName" type="text" value="Budi Santoso" required />
+          </label>
+          <label>ID Pemohon
+            <input name="applicantId" type="text" value="APP-1001" required />
+          </label>
+          <label>Jumlah Pengajuan (IDR)
+            <input name="requestedAmount" type="number" min="0" value="50000000" required />
+          </label>
+          <label>Penghasilan Tahunan (IDR)
+            <input name="annualIncome" type="number" min="0" value="360000000" required />
+          </label>
+          <label>Cicilan Bulanan (IDR)
+            <input name="monthlyDebt" type="number" min="0" value="3000000" required />
+          </label>
+          <label>Lama Bekerja (tahun)
+            <input name="employmentYears" type="number" min="0" value="8" required />
+          </label>
+          <label>Lama Riwayat Kredit (tahun)
+            <input name="creditHistoryYears" type="number" min="0" value="10" required />
+          </label>
+          <label>Jumlah Tunggakan
+            <input name="delinquencies" type="number" min="0" value="0" required />
+          </label>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn primary" id="submitBtn">Ajukan Kredit</button>
+          <button type="button" class="btn ghost" id="fillReject">Contoh Ditolak</button>
+          <button type="button" class="btn ghost" id="fillReview">Contoh Tinjauan</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Result -->
+    <section class="card result-card" id="resultCard" hidden>
+      <div class="result-head">
+        <h2>Hasil Keputusan</h2>
+        <span class="status-pill" id="statusPill">—</span>
+      </div>
+      <div id="progress" class="progress" hidden>
+        <div class="spinner"></div>
+        <span id="progressText">Memproses pengajuan…</span>
+      </div>
+
+      <div id="decision" hidden>
+        <div class="metrics">
+          <div class="metric"><span class="metric-label">Skor Kredit</span><span class="metric-value" id="mScore">—</span></div>
+          <div class="metric"><span class="metric-label">Kategori</span><span class="metric-value" id="mBand">—</span></div>
+          <div class="metric"><span class="metric-label">Tier Produk</span><span class="metric-value" id="mTier">—</span></div>
+          <div class="metric"><span class="metric-label">Limit Kredit</span><span class="metric-value" id="mLimit">—</span></div>
+          <div class="metric"><span class="metric-label">Bunga (APR)</span><span class="metric-value" id="mApr">—</span></div>
+          <div class="metric"><span class="metric-label">DTI</span><span class="metric-value" id="mDti">—</span></div>
+        </div>
+
+        <div class="reasons">
+          <h3>Faktor Penilaian</h3>
+          <ul id="reasonList"></ul>
+        </div>
+
+        <div class="letter">
+          <h3>Surat Keputusan</h3>
+          <div class="letter-body" id="letterBody"></div>
+        </div>
+      </div>
+
+      <!-- Underwriter review panel (shown when workflow waits) -->
+      <div id="reviewPanel" class="review-panel" hidden>
+        <h3>Tinjauan Manual (Underwriter)</h3>
+        <p class="muted">Pengajuan ini berada di ambang batas dan memerlukan keputusan manual.</p>
+        <div class="grid">
+          <label>Keputusan
+            <select id="rvDecision">
+              <option value="APPROVED">Setujui</option>
+              <option value="REJECTED">Tolak</option>
+            </select>
+          </label>
+          <label>Limit Kredit (IDR)
+            <input id="rvLimit" type="number" min="0" value="10000000" />
+          </label>
+          <label>Bunga APR (%)
+            <input id="rvApr" type="number" min="0" step="0.1" value="15.9" />
+          </label>
+          <label>Tier
+            <select id="rvTier">
+              <option>Standard</option>
+              <option>Gold</option>
+              <option>Platinum</option>
+              <option>None</option>
+            </select>
+          </label>
+        </div>
+        <label>Catatan
+          <input id="rvNote" type="text" value="Disetujui setelah underwriting manual dengan limit disesuaikan." />
+        </label>
+        <button type="button" class="btn primary" id="submitReview">Kirim Keputusan</button>
+      </div>
+
+      <div id="errorBox" class="error-box" hidden></div>
+      <div class="result-foot">
+        <button type="button" class="btn ghost" id="newApp">Pengajuan Baru</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    Prototype internal — bukan sistem produksi. Ditenagai oleh Orkes Conductor.
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
