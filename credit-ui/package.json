@@ -2,7 +2,7 @@
   "name": "credit-ui",
   "version": "1.0.0",
   "private": true,
-  "description": "BRI Credit Decisioning UI + Conductor credentials proxy",
+  "description": "BDN Credit Decisioning UI + Conductor credentials proxy",
   "scripts": {
     "dev": "node server.js",
     "sandbox": "ampx sandbox",

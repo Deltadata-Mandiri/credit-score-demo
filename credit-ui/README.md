@@ -1,4 +1,4 @@
-# BRI Credit Decisioning — UI + Credentials Proxy
+# BDN Credit Decisioning — UI + Credentials Proxy
 
 A simple blue-and-white web UI for the `credit_scoring_approval` Conductor workflow,
 served by a zero-dependency Node **backend-for-frontend proxy** that keeps your
@@ -78,8 +78,8 @@ Secrets) — sandbox secrets are not shared with branch environments.
 
 ## Notes
 
-- **Prototype / demo** — not a production system, and not affiliated with or an
-  official product of Bank BRI. Styled with BRI-like blue/white colors only.
+- **Prototype / demo** — not a production system, and Bank Delta Nusantara (BDN) is a fictitious
+  bank; the name and branding are mock-ups.
 - `.env` is git-ignored. Rotate any credential that has ever been shared in chat/logs.
 - The Function URL uses `authType: NONE` — it is publicly reachable, matching how
   `server.js` behaved on port 4000. The Conductor credentials never leave Lambda,
